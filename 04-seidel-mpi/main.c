@@ -28,15 +28,25 @@ int main(int argc, char *argv[]) {
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     int sendsize = size * recvsize;
-    int *sendbuf = (int *) malloc(sendsize * sizeof(int));
+    int *sendbuf = 0;
+    int *receivebuf = 0;
 
     if (rank == 0) {
+        sendbuf = (int *) malloc(sendsize * sizeof(int));
         generate_data(sendbuf, sendsize);
+
+        receivebuf = (int *) malloc(sendsize * sizeof(int));
     }
 
     MPI_Scatter(sendbuf, recvsize, MPI_INT, recvbuf, recvsize, MPI_INT, 0, MPI_COMM_WORLD);
-
     print_data(recvbuf, recvsize, rank);
+
+    //MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Gather(recvbuf, recvsize, MPI_INT, receivebuf, recvsize, MPI_INT, 0, MPI_COMM_WORLD);
+    if (rank == 0) {
+        printf("=========\n");
+        print_data(receivebuf, sendsize, rank);
+    }
 
     MPI_Finalize();
     return 0;
