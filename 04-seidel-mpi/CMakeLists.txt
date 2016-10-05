@@ -5,7 +5,7 @@ find_package(MPI REQUIRED)
 include_directories(${MPI_INCLUDE_PATH})
 
 set(CMAKE_C_COMPILER mpicc)
-set(CMAKE_CXX_FLAGS mpicxx)
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
