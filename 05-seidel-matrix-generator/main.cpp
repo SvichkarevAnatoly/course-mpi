@@ -104,26 +104,44 @@ void generateL(double *A) {
     }
 }
 
+void generateX(double X[]) {
+    int i;
+    for (i = 0; i < N; ++i) {
+        X[i] = 1;
+    }
+}
+
+void computeF(double A[], double X[], double F[]) {
+    int i, j;
+    for (i = 0; i < N; ++i) {
+        F[i] = 0;
+        for (j = 0; j < N; ++j) {
+            F[i] += A[i * N + j] * X[j];
+        }
+    }
+}
+
 int main() {
     double w[N];
     double P[N * N];
-
     double L[N * N]; // lambda
     double PL[N * N];
     double A[N * N]; // PLP
+    double X[N];
+    double F[N];
 
     generateW(w);
     generateP(P, w);
-    printMatrix(P);
-
     generateL(L);
-    printMatrix(L);
-
     matrixProduct(P, L, PL);
-    printMatrix(PL);
-
     matrixProduct(PL, P, A);
     printMatrix(A);
+
+    generateX(X);
+    printVector(X);
+
+    computeF(A, X, F);
+    printVector(F);
 
     printf("End\n");
     return 0;
