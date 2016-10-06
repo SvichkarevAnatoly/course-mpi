@@ -187,6 +187,11 @@ int main(int argc, char *argv[]) {
                  AA, sendcountsA[rank], MPI_DOUBLE,
                  0, MPI_COMM_WORLD);
 
+    // вычисление по сколько обмениваться частями X
+    int *sendcountsX = malloc(sizeof(int) * size);
+    int *displsX = malloc(sizeof(int) * size);
+    prepare_scatterX(sendcountsX, displsX, size);
+
     // для согласования с примером
     X[0] = 1.2;
     X[1] = 0;
@@ -195,17 +200,12 @@ int main(int argc, char *argv[]) {
     // рассылка всем начального X
     MPI_Bcast(X, N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-    copyX(oldX, X);
-    iteration(AA, X, sendcountsA, rank);
-
-    // вычисление по сколько обмениваться частями X
-    int *sendcountsX = malloc(sizeof(int) * size);
-    int *displsX = malloc(sizeof(int) * size);
-    prepare_scatterX(sendcountsX, displsX, size);
-    double *XX = malloc(sizeof(double) * sendcountsX[rank]);
-
-    MPI_Allgatherv(X, sendcountsX[rank], MPI_DOUBLE,
-                   X, sendcountsX, displsX, MPI_DOUBLE, MPI_COMM_WORLD);
+    do {
+        copyX(oldX, X);
+        iteration(AA, X, sendcountsA, rank);
+        MPI_Allgatherv(X, sendcountsX[rank], MPI_DOUBLE,
+                       X, sendcountsX, displsX, MPI_DOUBLE, MPI_COMM_WORLD);
+    } while (diffX(X, oldX) > EPS);
 
     printDoubleArray(X, N, rank);
     printf("Diff %4.4f\n", diffX(X, oldX));
@@ -216,3 +216,7 @@ int main(int argc, char *argv[]) {
 }
 
 #pragma clang diagnostic pop
+
+/* 1) Почему в MPI_Scatterv выходной и входной буфер не могут совпадать?
+ * 2) Как перевести стандарт компилятора, чтобы в for можно было объявлять переменные?
+ * */
