@@ -11,3 +11,5 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 
 set(SOURCE_FILES main.c)
 add_executable(04_seidel_mpi ${SOURCE_FILES})
+
+target_link_libraries(04_seidel_mpi m)
