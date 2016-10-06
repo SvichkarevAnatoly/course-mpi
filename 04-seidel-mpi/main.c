@@ -22,7 +22,7 @@ void printMatrixAndB(double A[]) {
     fflush(stdout);
 }
 
-void initMatrixAndB(double A[]) {
+void initAndB(double *A) {
     // 10 1 1  12
     // 2 10 1  13
     // 2 2 10  14
@@ -124,11 +124,33 @@ void prepare_scatterX(int *sendcountsX, int *displsX, int size) {
     return;
 }
 
+void initXasB(double *X, double *A) {
+    int i;
+    for (i = 0; i < N; ++i) {
+        X[i] = A[i * (N + 1) + N];
+    }
+}
+
+void iteration(double *AA, double *X, const int *sendcountsA, int rank) {
+    int i, j;
+    double oldX[N];
+    zeroX(oldX);
+    copyX(oldX, X);
+    for (i = 0; i < sendcountsA[rank] / (N + 1); ++i) {
+        X[i] = AA[i * (N + 1)] * X[0];
+        for (j = 1; j < N; ++j) {
+            X[i] += AA[i * (N + 1) + j] * X[j];
+        }
+        X[i] += AA[i * (N + 1) + N];
+    }
+}
+
 int main(int argc, char *argv[]) {
     int i = 0, j = 0, k = 0;
     int rank, size;
 
     double A[(N + 1) * N];
+    double X[N];
 
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -145,10 +167,11 @@ int main(int argc, char *argv[]) {
     // end for debugger
 
     if (rank == 0) {
-        initMatrixAndB(A);
+        initAndB(A);
         //printMatrixAndB(A);
         expressionVariables(A);
         //printMatrixAndB(A);
+        initXasB(X, A);
     }
 
     int *sendcountsA = malloc(sizeof(int) * size);
@@ -179,23 +202,15 @@ int main(int argc, char *argv[]) {
     }
     MPI_Barrier(MPI_COMM_WORLD);
 
-    double X[N];
-    double oldX[N];
-    zeroX(X);
-    zeroX(oldX);
-
+    // для согласования с примером
     X[0] = 1.2;
     X[1] = 0;
     X[2] = 0;
 
-    copyX(oldX, X);
-    for (i = 0; i < sendcountsA[rank] / (N + 1); ++i) {
-        X[i] = AA[i * (N + 1)] * X[0];
-        for (j = 1; j < N; ++j) {
-            X[i] += AA[i * (N + 1) + j] * X[j];
-        }
-        X[i] += AA[i * (N + 1) + N];
-    }
+    MPI_Bcast(X, N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    printDoubleArray(X, N, rank);
+
+    iteration(AA, X, sendcountsA, rank);
     //printDoubleArray(X, N, rank);
     //printf("diff %4.4f\n", diffX(X, oldX));
 
