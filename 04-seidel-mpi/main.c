@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <malloc.h>
 #include <zconf.h>
-#include <float.h>
 #include <math.h>
 
 #pragma clang diagnostic push
@@ -22,24 +21,27 @@ void printMatrixAndB(double A[]) {
     fflush(stdout);
 }
 
-void initAndB(double *A) {
-    // 10 1 1  12
-    // 2 10 1  13
-    // 2 2 10  14
-    A[0] = 10;
-    A[1] = 1;
-    A[2] = 1;
-    A[3] = 12;
+void initAndF(double *A) {
+    // A
+    // 0.5082 0.0564 -0.0675
+    // 0.0564 0.0302 -0.1554
+    // -0.0675 -0.1554 0.9631
+    // F
+    // 0.4971 -0.0688 0.7401
+    A[0] = 0.5082;
+    A[1] = 0.0564;
+    A[2] = -0.0675;
+    A[3] = 0.4971;
 
-    A[4] = 2;
-    A[5] = 10;
-    A[6] = 1;
-    A[7] = 13;
+    A[4] = 0.0564;
+    A[5] = 0.0302;
+    A[6] = -0.1554;
+    A[7] = -0.0688;
 
-    A[8] = 2;
-    A[9] = 2;
-    A[10] = 10;
-    A[11] = 14;
+    A[8] = -0.0675;
+    A[9] = -0.1554;
+    A[10] = 0.9631;
+    A[11] = 0.7401;
 }
 
 void printDoubleArray(double *arr, int size, int rank) {
@@ -68,18 +70,6 @@ void copyX(double *Xto, double *Xfrom) {
     for (i = 0; i < N; ++i) {
         Xto[i] = Xfrom[i];
     }
-}
-
-double diffX(double X[], double oldX[]) {
-    int i;
-    double maxDiff = -DBL_MAX;
-    for (i = 0; i < N; ++i) {
-        if (fabs(X[i] - oldX[i]) > maxDiff) {
-            maxDiff = fabs(X[i] - oldX[i]);
-        }
-    }
-
-    return maxDiff;
 }
 
 void zeroX(double X[]) {
@@ -182,7 +172,7 @@ int main(int argc, char *argv[]) {
 
     // инициализация матрицы A, векторов X, B
     if (rank == 0) {
-        initAndB(A);
+        initAndF(A);
         expressionVariables(A);
         initXasB(X, A);
     }
@@ -203,11 +193,6 @@ int main(int argc, char *argv[]) {
     int *displsX = malloc(sizeof(int) * size);
     prepare_scatterX(sendcountsX, displsX, size);
 
-    // для согласования с примером
-    X[0] = 1.2;
-    X[1] = 0;
-    X[2] = 0;
-
     // рассылка всем начального X
     MPI_Bcast(X, N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
@@ -222,7 +207,7 @@ int main(int argc, char *argv[]) {
 
         // с помощью all reduce отправить max из max всем остальным
         MPI_Allreduce(&localmax, &globmax, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-        printf("globmax = %4.4f\n", globmax);
+        // printf("globmax = %4.4f\n", globmax);
 
         MPI_Allgatherv(X, sendcountsX[rank], MPI_DOUBLE,
                        X, sendcountsX, displsX, MPI_DOUBLE, MPI_COMM_WORLD);
