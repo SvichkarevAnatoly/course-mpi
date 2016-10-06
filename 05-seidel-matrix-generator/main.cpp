@@ -121,7 +121,29 @@ void computeF(double A[], double X[], double F[]) {
     }
 }
 
-int main() {
+void merge(double A[], double F[], double AF[]) {
+    int i, j;
+    for (i = 0; i < N; ++i) {
+        AF[i * (N + 1) + N] = F[i];
+        for (j = 0; j < N; ++j) {
+            AF[i * (N + 1) + j] = A[i * N + j];
+        }
+    }
+}
+
+void printMatrixAF(double *AF) {
+    int i, j;
+    printf("Matrix AF:\n");
+    for (i = 0; i < N; ++i) {
+        for (j = 0; j < N + 1; ++j) {
+            printf("%5.2f ", AF[i * (N + 1) + j]);
+        }
+        printf("\n");
+    }
+    printf("\n");
+}
+
+void generateAF(double *AF) {
     double w[N];
     double P[N * N];
     double L[N * N]; // lambda
@@ -142,6 +164,14 @@ int main() {
 
     computeF(A, X, F);
     printVector(F);
+
+    merge(A, F, AF);
+    printMatrixAF(AF);
+}
+
+int main() {
+    double A[(N + 1) * N];
+    generateAF(A);
 
     printf("End\n");
     return 0;
