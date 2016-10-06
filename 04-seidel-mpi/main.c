@@ -150,7 +150,10 @@ int main(int argc, char *argv[]) {
     int rank, size;
 
     double A[(N + 1) * N];
-    double X[N];
+    double X[N], oldX[N];
+
+    // вроде для отключения буферизации
+    setvbuf(stdout, NULL, _IONBF, 0);
 
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -166,92 +169,50 @@ int main(int argc, char *argv[]) {
         sleep(5);*/
     // end for debugger
 
+    // инициализация матрицы A, векторов X, B
     if (rank == 0) {
         initAndB(A);
-        //printMatrixAndB(A);
         expressionVariables(A);
-        //printMatrixAndB(A);
         initXasB(X, A);
     }
 
+    // вычисление по сколько отправлять данных матрицы A
     int *sendcountsA = malloc(sizeof(int) * size);
     int *displsA = malloc(sizeof(int) * size);
     prepare_scatterA(sendcountsA, displsA, size);
     double *AA = malloc(sizeof(double) * sendcountsA[rank]);
 
-    // print calculated send counts and displacements for each process
-    /*if (0 == rank) {
-        for (i = 0; i < size; i++) {
-            printf("sendcountsA[%d] = %d\tdisplsA[%d] = %d\n",
-                   i, sendcountsA[i], i, displsA[i]);
-        }
-    }*/
-
-    // divide the data among processes as described by sendcountsA and displsA
+    // отправление всем процессам частей A
     MPI_Scatterv(A, sendcountsA, displsA, MPI_DOUBLE,
                  AA, sendcountsA[rank], MPI_DOUBLE,
                  0, MPI_COMM_WORLD);
-
-    MPI_Barrier(MPI_COMM_WORLD);
-    if (rank == 0) {
-        //printDoubleArray(AA, sendcountsA[0], rank);
-    }
-    MPI_Barrier(MPI_COMM_WORLD);
-    if (rank == 1) {
-        //printDoubleArray(AA, sendcountsA[1], rank);
-    }
-    MPI_Barrier(MPI_COMM_WORLD);
 
     // для согласования с примером
     X[0] = 1.2;
     X[1] = 0;
     X[2] = 0;
 
+    // рассылка всем начального X
     MPI_Bcast(X, N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    printDoubleArray(X, N, rank);
 
+    copyX(oldX, X);
     iteration(AA, X, sendcountsA, rank);
-    //printDoubleArray(X, N, rank);
-    //printf("diff %4.4f\n", diffX(X, oldX));
 
+    // вычисление по сколько обмениваться частями X
     int *sendcountsX = malloc(sizeof(int) * size);
     int *displsX = malloc(sizeof(int) * size);
     prepare_scatterX(sendcountsX, displsX, size);
     double *XX = malloc(sizeof(double) * sendcountsX[rank]);
 
-    MPI_Gather(X, 2, MPI_DOUBLE,
-               XX, sendcountsA[rank], MPI_DOUBLE,
-               0, MPI_COMM_WORLD);
+    MPI_Allgatherv(X, sendcountsX[rank], MPI_DOUBLE,
+                   X, sendcountsX, displsX, MPI_DOUBLE, MPI_COMM_WORLD);
 
-    if (rank == 0) {
-        printf("========\n");
-        printDoubleArray(XX, N, rank);
-        printf("Diff %4.4f\n", diffX(X, XX));
-    }
-
-    zeroX(X);
-
-    if (0 == rank) {
-        for (i = 0; i < size; i++) {
-            printf("sendcountsA[%d] = %d\tdisplsA[%d] = %d\n",
-                   i, sendcountsA[i], i, displsA[i]);
-        }
-    }
-    MPI_Scatterv(XX, sendcountsA, displsA, MPI_DOUBLE,
-                 X, sendcountsA[rank], MPI_DOUBLE,
-                 0, MPI_COMM_WORLD);
     printDoubleArray(X, N, rank);
+    printf("Diff %4.4f\n", diffX(X, oldX));
 
-    fflush(stdout);
-
+    printf("End\n");
     MPI_Finalize();
     return 0;
 }
 
 #pragma clang diagnostic pop
-
-/*
- * 1) Почему вывод каждый раз в разном месте прерывается
- * 2) Как дебажить?
- * 3) Как использовать gatherv если куски для приёма разные?
- */
