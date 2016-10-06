@@ -89,22 +89,50 @@ void zeroX(double X[]) {
     }
 }
 
+void prepare_scatterA(int *sendcountsA, int *displsA, int size) {
+    int i;
+    int rem = N % size;   // elements remaining after division among processes
+    int sum = 0;          // Sum of counts. Used to calculate displacements
+    for (i = 0; i < size; i++) {
+        sendcountsA[i] = (N / size) * (N + 1);
+        if (rem > 0) {
+            sendcountsA[i] += (N + 1);
+            rem--;
+        }
+
+        displsA[i] = sum;
+        sum += sendcountsA[i];
+    }
+    return;
+}
+
+void prepare_scatterX(int *sendcountsX, int *displsX, int size) {
+    int i;
+    int rem = N % size;   // elements remaining after division among processes
+    int sum = 0;          // Sum of counts. Used to calculate displacements
+    for (i = 0; i < size; i++) {
+        sendcountsX[i] = N / size;
+        if (rem > 0) {
+            sendcountsX[i]++;
+            rem--;
+        }
+
+        displsX[i] = sum;
+        sum += sendcountsX[i];
+    }
+
+    return;
+}
+
 int main(int argc, char *argv[]) {
     int i = 0, j = 0, k = 0;
     int rank, size;
 
     double A[(N + 1) * N];
-    double *AA = 0;
-
-    int *sendcounts;    // array describing how many elements to send to each process
-    int *displs;        // array describing the displacements where each segment begins
 
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
-
-    int rem = N % size;   // elements remaining after division among processes
-    int sum = 0;          // Sum of counts. Used to calculate displacements
 
     // for debugger
     /*char hostname[256];
@@ -123,44 +151,31 @@ int main(int argc, char *argv[]) {
         //printMatrixAndB(A);
     }
 
-    sendcounts = malloc(sizeof(int) * size);
-    displs = malloc(sizeof(int) * size);
-
-    // calculate send counts and displacements
-    for (i = 0; i < size; i++) {
-        sendcounts[i] = (N / size) * (N + 1);
-        if (rem > 0) {
-            sendcounts[i] += (N + 1);
-            rem--;
-        }
-
-        displs[i] = sum;
-        sum += sendcounts[i];
-        if (rank == i) {
-            AA = malloc(sizeof(double) * sendcounts[i]);
-        }
-    }
+    int *sendcountsA = malloc(sizeof(int) * size);
+    int *displsA = malloc(sizeof(int) * size);
+    prepare_scatterA(sendcountsA, displsA, size);
+    double *AA = malloc(sizeof(double) * sendcountsA[rank]);
 
     // print calculated send counts and displacements for each process
     /*if (0 == rank) {
         for (i = 0; i < size; i++) {
-            printf("sendcounts[%d] = %d\tdispls[%d] = %d\n",
-                   i, sendcounts[i], i, displs[i]);
+            printf("sendcountsA[%d] = %d\tdisplsA[%d] = %d\n",
+                   i, sendcountsA[i], i, displsA[i]);
         }
     }*/
 
-    // divide the data among processes as described by sendcounts and displs
-    MPI_Scatterv(A, sendcounts, displs, MPI_DOUBLE,
-                 AA, sendcounts[rank], MPI_DOUBLE,
+    // divide the data among processes as described by sendcountsA and displsA
+    MPI_Scatterv(A, sendcountsA, displsA, MPI_DOUBLE,
+                 AA, sendcountsA[rank], MPI_DOUBLE,
                  0, MPI_COMM_WORLD);
 
     MPI_Barrier(MPI_COMM_WORLD);
     if (rank == 0) {
-        //printDoubleArray(AA, sendcounts[0], rank);
+        //printDoubleArray(AA, sendcountsA[0], rank);
     }
     MPI_Barrier(MPI_COMM_WORLD);
     if (rank == 1) {
-        //printDoubleArray(AA, sendcounts[1], rank);
+        //printDoubleArray(AA, sendcountsA[1], rank);
     }
     MPI_Barrier(MPI_COMM_WORLD);
 
@@ -174,7 +189,7 @@ int main(int argc, char *argv[]) {
     X[2] = 0;
 
     copyX(oldX, X);
-    for (i = 0; i < sendcounts[rank] / (N + 1); ++i) {
+    for (i = 0; i < sendcountsA[rank] / (N + 1); ++i) {
         X[i] = AA[i * (N + 1)] * X[0];
         for (j = 1; j < N; ++j) {
             X[i] += AA[i * (N + 1) + j] * X[j];
@@ -184,17 +199,13 @@ int main(int argc, char *argv[]) {
     //printDoubleArray(X, N, rank);
     //printf("diff %4.4f\n", diffX(X, oldX));
 
-    double XX[N]; // только для 0 процесса
-    int sendcountsX[2] = {2, 1};
-    int displsX[2] = {0, 2};
-
-    if (rank == 1) {
-        //printf("?????\n");
-        //printDoubleArray(X, N, rank);
-    }
+    int *sendcountsX = malloc(sizeof(int) * size);
+    int *displsX = malloc(sizeof(int) * size);
+    prepare_scatterX(sendcountsX, displsX, size);
+    double *XX = malloc(sizeof(double) * sendcountsX[rank]);
 
     MPI_Gather(X, 2, MPI_DOUBLE,
-               XX, sendcountsX[rank], MPI_DOUBLE,
+               XX, sendcountsA[rank], MPI_DOUBLE,
                0, MPI_COMM_WORLD);
 
     if (rank == 0) {
@@ -205,26 +216,14 @@ int main(int argc, char *argv[]) {
 
     zeroX(X);
 
-    sum = 0;
-    rem = N % size;
-    for (i = 0; i < size; i++) {
-        sendcounts[i] = N / size;
-        if (rem > 0) {
-            sendcounts[i]++;
-            rem--;
-        }
-
-        displs[i] = sum;
-        sum += sendcounts[i];
-    }
     if (0 == rank) {
         for (i = 0; i < size; i++) {
-            printf("sendcounts[%d] = %d\tdispls[%d] = %d\n",
-                   i, sendcounts[i], i, displs[i]);
+            printf("sendcountsA[%d] = %d\tdisplsA[%d] = %d\n",
+                   i, sendcountsA[i], i, displsA[i]);
         }
     }
-    MPI_Scatterv(XX, sendcounts, displs, MPI_DOUBLE,
-                 X, sendcounts[rank], MPI_DOUBLE,
+    MPI_Scatterv(XX, sendcountsA, displsA, MPI_DOUBLE,
+                 X, sendcountsA[rank], MPI_DOUBLE,
                  0, MPI_COMM_WORLD);
     printDoubleArray(X, N, rank);
 
