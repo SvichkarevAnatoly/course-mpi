@@ -131,18 +131,29 @@ void initXasB(double *X, double *A) {
     }
 }
 
-void iteration(double *AA, double *X, const int *sendcountsA, int rank) {
+void iteration(double *AA, double *X, int sizeXrank) {
     int i, j;
     double oldX[N];
     zeroX(oldX);
     copyX(oldX, X);
-    for (i = 0; i < sendcountsA[rank] / (N + 1); ++i) {
+    for (i = 0; i < sizeXrank / (N + 1); ++i) {
         X[i] = AA[i * (N + 1)] * X[0];
         for (j = 1; j < N; ++j) {
             X[i] += AA[i * (N + 1) + j] * X[j];
         }
         X[i] += AA[i * (N + 1) + N];
     }
+}
+
+double local_max(double X[], double oldX[], int sizeXrank, int displsXrank) {
+    int i;
+    double max = fabs(X[0] - oldX[displsXrank]);
+    for (i = 1; i < sizeXrank; ++i) {
+        if (fabs(X[i] - oldX[displsXrank + i]) > max) {
+            max = fabs(X[i] - oldX[displsXrank + i]);
+        }
+    }
+    return max;
 }
 
 int main(int argc, char *argv[]) {
@@ -200,15 +211,22 @@ int main(int argc, char *argv[]) {
     // рассылка всем начального X
     MPI_Bcast(X, N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
+    double max;
+    double globmax;
     do {
         copyX(oldX, X);
-        iteration(AA, X, sendcountsA, rank);
+        iteration(AA, X, sendcountsA[rank]);
+
+        // посчитать локальные максимумы
+        max = local_max(X, oldX, sendcountsX[rank], displsX[rank]);
+
+        // с помощью all reduce отправить max из max всем остальным
+        MPI_Allreduce(&max, &globmax, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+        printf("globmax = %4.4f\n", globmax);
+
         MPI_Allgatherv(X, sendcountsX[rank], MPI_DOUBLE,
                        X, sendcountsX, displsX, MPI_DOUBLE, MPI_COMM_WORLD);
-    } while (diffX(X, oldX) > EPS);
-
-    printDoubleArray(X, N, rank);
-    printf("Diff %4.4f\n", diffX(X, oldX));
+    } while (globmax > EPS);
 
     printf("End\n");
     MPI_Finalize();
