@@ -211,22 +211,26 @@ int main(int argc, char *argv[]) {
     // рассылка всем начального X
     MPI_Bcast(X, N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-    double max;
+    double localmax;
     double globmax;
     do {
         copyX(oldX, X);
         iteration(AA, X, sendcountsA[rank]);
 
-        // посчитать локальные максимумы
-        max = local_max(X, oldX, sendcountsX[rank], displsX[rank]);
+        // вычисление локального максимума на процессе
+        localmax = local_max(X, oldX, sendcountsX[rank], displsX[rank]);
 
         // с помощью all reduce отправить max из max всем остальным
-        MPI_Allreduce(&max, &globmax, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+        MPI_Allreduce(&localmax, &globmax, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
         printf("globmax = %4.4f\n", globmax);
 
         MPI_Allgatherv(X, sendcountsX[rank], MPI_DOUBLE,
                        X, sendcountsX, displsX, MPI_DOUBLE, MPI_COMM_WORLD);
     } while (globmax > EPS);
+
+    if (rank == 0) {
+        printDoubleArray(X, N, rank);
+    }
 
     printf("End\n");
     MPI_Finalize();
