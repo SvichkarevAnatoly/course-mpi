@@ -1,12 +1,11 @@
 #include <mpi.h>
 #include <stdio.h>
-#include <malloc.h>
 #include <math.h>
 #include <stdlib.h>
 
 const double EPS = 0.0001;
 
-void expressionVariables(double *A, int N) {
+void expressionVariables(double A[], int N) {
     int i, j;
     for (i = 0; i < N; ++i) {
         double cur = A[i * (N + 1) + i];
@@ -18,7 +17,7 @@ void expressionVariables(double *A, int N) {
     }
 }
 
-void copyX(double *Xto, double *Xfrom, int N) {
+void copyX(double Xto[], double Xfrom[], int N) {
     int i;
     for (i = 0; i < N; ++i) {
         Xto[i] = Xfrom[i];
@@ -32,7 +31,7 @@ void zeroX(double X[], int N) {
     }
 }
 
-void prepareScatterA(int *sendcountsA, int *displsA, int size, int N) {
+void prepareScatterA(int sendcountsA[], int displsA[], int size, int N) {
     int i;
     int rem = N % size;
     int sum = 0;
@@ -49,7 +48,7 @@ void prepareScatterA(int *sendcountsA, int *displsA, int size, int N) {
     return;
 }
 
-void prepareScatterX(int *sendcountsX, int *displsX, int size, int N) {
+void prepareScatterX(int sendcountsX[], int displsX[], int size, int N) {
     int i;
     int rem = N % size;
     int sum = 0;
@@ -67,14 +66,14 @@ void prepareScatterX(int *sendcountsX, int *displsX, int size, int N) {
     return;
 }
 
-void initXasB(double *X, double *A, int N) {
+void initXasB(double X[], double A[], int N) {
     int i;
     for (i = 0; i < N; ++i) {
         X[i] = A[i * (N + 1) + N];
     }
 }
 
-void iteration(double *AA, double *X, int sizeXrank, int N) {
+void iteration(double AA[], double X[], int sizeXrank, int N) {
     int i, j;
     double oldX[N];
     zeroX(oldX, N);
@@ -88,7 +87,7 @@ void iteration(double *AA, double *X, int sizeXrank, int N) {
     }
 }
 
-double localDiffMax(double *X, double *oldX, int sizeXrank, int displsXrank) {
+double localDiffMax(double X[], double oldX[], int sizeXrank, int displsXrank) {
     int i;
     double max = fabs(X[0] - oldX[displsXrank]);
     for (i = 1; i < sizeXrank; ++i) {
@@ -106,7 +105,7 @@ void generateW(double w[], int N) {
     }
 }
 
-void printVector(double *w, int N) {
+void printVector(double w[], int N) {
     printf("Vector:\n");
     int i;
     for (i = 0; i < N; ++i) {
@@ -124,7 +123,7 @@ void productW(double K[], double w[], int N) {
     }
 }
 
-double scalarProductW(double *w, int N) {
+double scalarProductW(double w[], int N) {
     int i;
     double sp = 0;
     for (i = 0; i < N; ++i) {
@@ -133,7 +132,7 @@ double scalarProductW(double *w, int N) {
     return sp;
 }
 
-void printMatrix(double *P, int N) {
+void printMatrix(double P[], int N) {
     int i, j;
     printf("Matrix:\n");
     for (i = 0; i < N; ++i) {
@@ -184,7 +183,7 @@ void matrixProduct(double A[], double B[], double AB[], int N) {
 }
 
 // с числом обусловленности через собственные значения
-void generateL(double *A, int cond, int N) {
+void generateL(double A[], int cond, int N) {
     int i, j;
     double minLambda = 1.0 / cond;
     double maxLambda = 1.0;
@@ -226,7 +225,7 @@ void merge(double A[], double F[], double AF[], int N) {
     }
 }
 
-void printMatrixAF(double *AF, int N) {
+void printMatrixAF(double AF[], int N) {
     int i, j;
     printf("Matrix AF:\n");
     for (i = 0; i < N; ++i) {
@@ -238,7 +237,7 @@ void printMatrixAF(double *AF, int N) {
     printf("\n");
 }
 
-void generateAF(double *AF, int cond, int N) {
+void generateAF(double AF[], int cond, int N) {
     double w[N];
     double P[N * N];
     double L[N * N]; // lambda
@@ -290,10 +289,10 @@ int main(int argc, char *argv[]) {
     }
 
     // вычисление по сколько отправлять данных матрицы A
-    int *sendcountsA = malloc(sizeof(int) * size);
-    int *displsA = malloc(sizeof(int) * size);
+    int sendcountsA[size];
+    int displsA[size];
     prepareScatterA(sendcountsA, displsA, size, N);
-    double *AA = malloc(sizeof(double) * sendcountsA[rank]);
+    double AA[sendcountsA[rank]];
 
     // отправление всем процессам частей A
     MPI_Scatterv(A, sendcountsA, displsA, MPI_DOUBLE,
@@ -301,8 +300,8 @@ int main(int argc, char *argv[]) {
                  0, MPI_COMM_WORLD);
 
     // вычисление по сколько обмениваться частями X
-    int *sendcountsX = malloc(sizeof(int) * size);
-    int *displsX = malloc(sizeof(int) * size);
+    int sendcountsX[size];
+    int displsX[size];
     prepareScatterX(sendcountsX, displsX, size, N);
 
     // рассылка всем начального X
