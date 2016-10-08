@@ -3,6 +3,7 @@
 #include <math.h>
 #include <stdlib.h>
 
+// заданная точность по норме бесконечности
 const double EPS = 0.001;
 
 void expressionVariables(double A[], int N) {
@@ -227,6 +228,7 @@ void merge(double A[], double F[], double AF[], int N) {
     }
 }
 
+// сборка матрицы A и F
 void generateAF(double AF[], int cond, int N) {
     double w[N];
     double P[N * N];
@@ -241,11 +243,8 @@ void generateAF(double AF[], int cond, int N) {
     generateL(L, cond, N);
     matrixProduct(P, L, PL, N);
     matrixProduct(PL, P, A, N);
-
     generateX(X, N);
-
     computeF(A, X, F, N);
-
     merge(A, F, AF, N);
 }
 
@@ -267,7 +266,6 @@ int main(int argc, char *argv[]) {
         cond = atoi(argv[2]);
     }
 
-    int k = 0;
     int rank = 0, size;
 
     MPI_Init(&argc, &argv);
@@ -307,12 +305,13 @@ int main(int argc, char *argv[]) {
 
     // рассылка всем начального X
     MPI_Bcast(X, N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    copyX(oldX, X, N);
 
     double localmax;
     double globmax;
     int counter = 0;
     do {
-        copyX(oldX, X, N);
+        copyX(X, oldX, N);
         iteration(AA, X, sendcountsA[rank], N);
 
         // вычисление локального максимума на процессе
@@ -322,13 +321,21 @@ int main(int argc, char *argv[]) {
         MPI_Allreduce(&localmax, &globmax, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
         MPI_Allgatherv(X, sendcountsX[rank], MPI_DOUBLE,
-                       X, sendcountsX, displsX, MPI_DOUBLE, MPI_COMM_WORLD);
+                       oldX, sendcountsX, displsX, MPI_DOUBLE, MPI_COMM_WORLD);
         counter++;
     } while (globmax > EPS);
 
+    // вывод результата
     if (rank == 0) {
-        //printVector(X, N);
-        printAverage(X, N);
+        if(N <= 10){
+            // если строк мало, вывести получившийся X
+            printVector(X, N);
+        } else {
+            // иначе вычислить среднее от координат,
+            // должно получаться близко к 1,
+            // т.к. F подбиралось под X из единиц.
+            printAverage(X, N);
+        }
         printf("Number iteration: %d\n", counter);
     }
 
