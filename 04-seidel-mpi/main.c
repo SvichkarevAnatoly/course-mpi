@@ -8,51 +8,7 @@
 #pragma ide diagnostic ignored "OCDFAInspection"
 const int N = 3;
 const double COND = 1000;
-const double EPS = 0.001;
-
-void printMatrixAndB(double A[]) {
-    int i, j;
-    for (i = 0; i < N; ++i) {
-        for (j = 0; j < N; ++j) {
-            printf("%4.2f\t", A[i * (N + 1) + j]);
-        }
-        printf("   \t%4.2f\n", A[i * (N + 1) + N]);
-    }
-    printf("\n");
-    fflush(stdout);
-}
-
-void initAndF(double *A) {
-    // A
-    // 0.5082 0.0564 -0.0675
-    // 0.0564 0.0302 -0.1554
-    // -0.0675 -0.1554 0.9631
-    // F
-    // 0.4971 -0.0688 0.7401
-    A[0] = 0.5082;
-    A[1] = 0.0564;
-    A[2] = -0.0675;
-    A[3] = 0.4971;
-
-    A[4] = 0.0564;
-    A[5] = 0.0302;
-    A[6] = -0.1554;
-    A[7] = -0.0688;
-
-    A[8] = -0.0675;
-    A[9] = -0.1554;
-    A[10] = 0.9631;
-    A[11] = 0.7401;
-}
-
-void printDoubleArray(double *arr, int size, int rank) {
-    int i;
-    for (i = 0; i < size; ++i) {
-        printf("r%d %4.2f\t", rank, arr[i]);
-    }
-    printf("\n");
-    fflush(stdout);
-}
+const double EPS = 0.0001;
 
 void expressionVariables(double *A) {
     int i, j;
@@ -313,7 +269,7 @@ void generateAF(double *AF) {
 }
 
 int main(int argc, char *argv[]) {
-    int i = 0, j = 0, k = 0;
+    int k = 0;
     int rank, size;
 
     double A[(N + 1) * N];
@@ -364,6 +320,7 @@ int main(int argc, char *argv[]) {
 
     double localmax;
     double globmax;
+    int counter = 0;
     do {
         copyX(oldX, X);
         iteration(AA, X, sendcountsA[rank]);
@@ -377,10 +334,12 @@ int main(int argc, char *argv[]) {
 
         MPI_Allgatherv(X, sendcountsX[rank], MPI_DOUBLE,
                        X, sendcountsX, displsX, MPI_DOUBLE, MPI_COMM_WORLD);
+        counter++;
     } while (globmax > EPS);
 
     if (rank == 0) {
-        printDoubleArray(X, N, rank);
+        printVector(X);
+        printf("Number iteration: %d\n", counter);
     }
 
     printf("End\n");
