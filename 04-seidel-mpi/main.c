@@ -1,16 +1,12 @@
 #include <mpi.h>
 #include <stdio.h>
 #include <malloc.h>
-#include <zconf.h>
 #include <math.h>
+#include <stdlib.h>
 
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "OCDFAInspection"
-const int N = 3;
-const double COND = 1000;
 const double EPS = 0.0001;
 
-void expressionVariables(double *A) {
+void expressionVariables(double *A, int N) {
     int i, j;
     for (i = 0; i < N; ++i) {
         double cur = A[i * (N + 1) + i];
@@ -22,24 +18,24 @@ void expressionVariables(double *A) {
     }
 }
 
-void copyX(double *Xto, double *Xfrom) {
+void copyX(double *Xto, double *Xfrom, int N) {
     int i;
     for (i = 0; i < N; ++i) {
         Xto[i] = Xfrom[i];
     }
 }
 
-void zeroX(double X[]) {
+void zeroX(double X[], int N) {
     int i;
     for (i = 0; i < N; ++i) {
         X[i] = 0;
     }
 }
 
-void prepare_scatterA(int *sendcountsA, int *displsA, int size) {
+void prepareScatterA(int *sendcountsA, int *displsA, int size, int N) {
     int i;
-    int rem = N % size;   // elements remaining after division among processes
-    int sum = 0;          // Sum of counts. Used to calculate displacements
+    int rem = N % size;
+    int sum = 0;
     for (i = 0; i < size; i++) {
         sendcountsA[i] = (N / size) * (N + 1);
         if (rem > 0) {
@@ -53,10 +49,10 @@ void prepare_scatterA(int *sendcountsA, int *displsA, int size) {
     return;
 }
 
-void prepare_scatterX(int *sendcountsX, int *displsX, int size) {
+void prepareScatterX(int *sendcountsX, int *displsX, int size, int N) {
     int i;
-    int rem = N % size;   // elements remaining after division among processes
-    int sum = 0;          // Sum of counts. Used to calculate displacements
+    int rem = N % size;
+    int sum = 0;
     for (i = 0; i < size; i++) {
         sendcountsX[i] = N / size;
         if (rem > 0) {
@@ -71,18 +67,18 @@ void prepare_scatterX(int *sendcountsX, int *displsX, int size) {
     return;
 }
 
-void initXasB(double *X, double *A) {
+void initXasB(double *X, double *A, int N) {
     int i;
     for (i = 0; i < N; ++i) {
         X[i] = A[i * (N + 1) + N];
     }
 }
 
-void iteration(double *AA, double *X, int sizeXrank) {
+void iteration(double *AA, double *X, int sizeXrank, int N) {
     int i, j;
     double oldX[N];
-    zeroX(oldX);
-    copyX(oldX, X);
+    zeroX(oldX, N);
+    copyX(oldX, X, N);
     for (i = 0; i < sizeXrank / (N + 1); ++i) {
         X[i] = AA[i * (N + 1)] * X[0];
         for (j = 1; j < N; ++j) {
@@ -92,7 +88,7 @@ void iteration(double *AA, double *X, int sizeXrank) {
     }
 }
 
-double local_max(double X[], double oldX[], int sizeXrank, int displsXrank) {
+double localDiffMax(double *X, double *oldX, int sizeXrank, int displsXrank, int N) {
     int i;
     double max = fabs(X[0] - oldX[displsXrank]);
     for (i = 1; i < sizeXrank; ++i) {
@@ -103,14 +99,14 @@ double local_max(double X[], double oldX[], int sizeXrank, int displsXrank) {
     return max;
 }
 
-void generateW(double w[]) {
+void generateW(double w[], int N) {
     int i;
     for (i = 0; i < N; ++i) {
         w[i] = sin(i + 1);
     }
 }
 
-void printVector(double *w) {
+void printVector(double *w, int N) {
     printf("Vector:\n");
     int i;
     for (i = 0; i < N; ++i) {
@@ -119,7 +115,7 @@ void printVector(double *w) {
     printf("\n");
 }
 
-void productW(double K[], double w[]) {
+void productW(double K[], double w[], int N) {
     int i, j;
     for (i = 0; i < N; ++i) {
         for (j = 0; j < N; ++j) {
@@ -128,7 +124,7 @@ void productW(double K[], double w[]) {
     }
 }
 
-double scalarProductW(double *w) {
+double scalarProductW(double *w, int N) {
     int i;
     double sp = 0;
     for (i = 0; i < N; ++i) {
@@ -137,7 +133,7 @@ double scalarProductW(double *w) {
     return sp;
 }
 
-void printMatrix(double *P) {
+void printMatrix(double *P, int N) {
     int i, j;
     printf("Matrix:\n");
     for (i = 0; i < N; ++i) {
@@ -150,7 +146,7 @@ void printMatrix(double *P) {
 }
 
 // P = E - 2 * w*w^T / w^T*w
-void generateP(double P[], double w[]) {
+void generateP(double P[], double w[], int N) {
     int i, j;
     // единичная матрица
     for (i = 0; i < N; ++i) {
@@ -164,9 +160,9 @@ void generateP(double P[], double w[]) {
 
     double K[N * N];
     // произведение вектора на вектор, дающее матрицу
-    productW(K, w);
+    productW(K, w, N);
     // скалярное произведение
-    double ww = scalarProductW(w);
+    double ww = scalarProductW(w, N);
     // матрица P
     for (i = 0; i < N; ++i) {
         for (j = 0; j < N; ++j) {
@@ -175,7 +171,7 @@ void generateP(double P[], double w[]) {
     }
 }
 
-void matrixProduct(double A[], double B[], double AB[]) {
+void matrixProduct(double A[], double B[], double AB[], int N) {
     int i, j, k;
     for (i = 0; i < N; ++i) {
         for (j = 0; j < N; ++j) {
@@ -188,29 +184,29 @@ void matrixProduct(double A[], double B[], double AB[]) {
 }
 
 // с числом обусловленности через собственные значения
-void generateL(double *A) {
+void generateL(double *A, int cond, int N) {
     int i, j;
-    double min_lambda = 1.0 / COND;
-    double max_lambda = 1.0;
-    double diff_lambda = max_lambda - min_lambda;
+    double minLambda = 1.0 / cond;
+    double maxLambda = 1.0;
+    double diffLambda = maxLambda - minLambda;
     for (i = 0; i < N; ++i) {
         for (j = 0; j < N; ++j) {
             A[i * N + j] = 0;
             if (i == j) {
-                A[i * N + j] = min_lambda + (diff_lambda * i) / (N - 1);
+                A[i * N + j] = minLambda + (diffLambda * i) / (N - 1);
             }
         }
     }
 }
 
-void generateX(double X[]) {
+void generateX(double X[], int N) {
     int i;
     for (i = 0; i < N; ++i) {
         X[i] = 1;
     }
 }
 
-void computeF(double A[], double X[], double F[]) {
+void computeF(double A[], double X[], double F[], int N) {
     int i, j;
     for (i = 0; i < N; ++i) {
         F[i] = 0;
@@ -220,7 +216,7 @@ void computeF(double A[], double X[], double F[]) {
     }
 }
 
-void merge(double A[], double F[], double AF[]) {
+void merge(double A[], double F[], double AF[], int N) {
     int i, j;
     for (i = 0; i < N; ++i) {
         AF[i * (N + 1) + N] = F[i];
@@ -230,7 +226,7 @@ void merge(double A[], double F[], double AF[]) {
     }
 }
 
-void printMatrixAF(double *AF) {
+void printMatrixAF(double *AF, int N) {
     int i, j;
     printf("Matrix AF:\n");
     for (i = 0; i < N; ++i) {
@@ -242,7 +238,7 @@ void printMatrixAF(double *AF) {
     printf("\n");
 }
 
-void generateAF(double *AF) {
+void generateAF(double *AF, int cond, int N) {
     double w[N];
     double P[N * N];
     double L[N * N]; // lambda
@@ -251,27 +247,31 @@ void generateAF(double *AF) {
     double X[N];
     double F[N];
 
-    generateW(w);
-    generateP(P, w);
-    generateL(L);
-    matrixProduct(P, L, PL);
-    matrixProduct(PL, P, A);
-    //printMatrix(A);
+    generateW(w, N);
+    generateP(P, w, N);
+    generateL(L, cond, N);
+    matrixProduct(P, L, PL, N);
+    matrixProduct(PL, P, A, N);
 
-    generateX(X);
-    //printVector(X);
+    generateX(X, N);
 
-    computeF(A, X, F);
-    //printVector(F);
+    computeF(A, X, F, N);
 
-    merge(A, F, AF);
-    //printMatrixAF(AF);
+    merge(A, F, AF, N);
+    printMatrixAF(AF, N);
 }
 
 int main(int argc, char *argv[]) {
-    int k = 0;
-    int rank, size;
+    int rank = 0, size;
 
+    int N = 0;
+    int cond = 0;
+    if (argc > 1) {
+        N = atoi(argv[1]);
+        cond = atoi(argv[2]);
+    }
+
+    // в массиве A хранится матрица A и вектор F
     double A[(N + 1) * N];
     double X[N], oldX[N];
 
@@ -282,27 +282,17 @@ int main(int argc, char *argv[]) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    // for debugger
-    /*char hostname[256];
-    gethostname(hostname, sizeof(hostname));
-    printf("PID %d on %s ready for attach\n", getpid(), hostname);
-    fflush(stdout);
-    //while (rank == 1 && 0 == k)
-    while (rank == 0 && 0 == k)
-        sleep(5);*/
-    // end for debugger
-
     // инициализация матрицы A, векторов X, B
     if (rank == 0) {
-        generateAF(A);
-        expressionVariables(A);
-        initXasB(X, A);
+        generateAF(A, cond, N);
+        expressionVariables(A, N);
+        initXasB(X, A, N);
     }
 
     // вычисление по сколько отправлять данных матрицы A
     int *sendcountsA = malloc(sizeof(int) * size);
     int *displsA = malloc(sizeof(int) * size);
-    prepare_scatterA(sendcountsA, displsA, size);
+    prepareScatterA(sendcountsA, displsA, size, N);
     double *AA = malloc(sizeof(double) * sendcountsA[rank]);
 
     // отправление всем процессам частей A
@@ -313,7 +303,7 @@ int main(int argc, char *argv[]) {
     // вычисление по сколько обмениваться частями X
     int *sendcountsX = malloc(sizeof(int) * size);
     int *displsX = malloc(sizeof(int) * size);
-    prepare_scatterX(sendcountsX, displsX, size);
+    prepareScatterX(sendcountsX, displsX, size, N);
 
     // рассылка всем начального X
     MPI_Bcast(X, N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
@@ -322,15 +312,14 @@ int main(int argc, char *argv[]) {
     double globmax;
     int counter = 0;
     do {
-        copyX(oldX, X);
-        iteration(AA, X, sendcountsA[rank]);
+        copyX(oldX, X, N);
+        iteration(AA, X, sendcountsA[rank], N);
 
         // вычисление локального максимума на процессе
-        localmax = local_max(X, oldX, sendcountsX[rank], displsX[rank]);
+        localmax = localDiffMax(X, oldX, sendcountsX[rank], displsX[rank], N);
 
         // с помощью all reduce отправить max из max всем остальным
         MPI_Allreduce(&localmax, &globmax, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-        // printf("globmax = %4.4f\n", globmax);
 
         MPI_Allgatherv(X, sendcountsX[rank], MPI_DOUBLE,
                        X, sendcountsX, displsX, MPI_DOUBLE, MPI_COMM_WORLD);
@@ -338,17 +327,12 @@ int main(int argc, char *argv[]) {
     } while (globmax > EPS);
 
     if (rank == 0) {
-        printVector(X);
+        printVector(X, N);
         printf("Number iteration: %d\n", counter);
     }
 
-    printf("End\n");
+    MPI_Barrier(MPI_COMM_WORLD);
+    printf("End rank %d\n", rank);
     MPI_Finalize();
     return 0;
 }
-
-#pragma clang diagnostic pop
-
-/* 1) Почему в MPI_Scatterv выходной и входной буфер не могут совпадать?
- * 2) Как перевести стандарт компилятора, чтобы в for можно было объявлять переменные?
- * */
