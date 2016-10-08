@@ -88,7 +88,7 @@ void iteration(double *AA, double *X, int sizeXrank, int N) {
     }
 }
 
-double localDiffMax(double *X, double *oldX, int sizeXrank, int displsXrank, int N) {
+double localDiffMax(double *X, double *oldX, int sizeXrank, int displsXrank) {
     int i;
     double max = fabs(X[0] - oldX[displsXrank]);
     for (i = 1; i < sizeXrank; ++i) {
@@ -316,7 +316,7 @@ int main(int argc, char *argv[]) {
         iteration(AA, X, sendcountsA[rank], N);
 
         // вычисление локального максимума на процессе
-        localmax = localDiffMax(X, oldX, sendcountsX[rank], displsX[rank], N);
+        localmax = localDiffMax(X, oldX, sendcountsX[rank], displsX[rank]);
 
         // с помощью all reduce отправить max из max всем остальным
         MPI_Allreduce(&localmax, &globmax, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);

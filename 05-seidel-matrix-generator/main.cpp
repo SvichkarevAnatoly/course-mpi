@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <cmath>
 
-const int N = 3;
+const int N = 4;
 const double COND = 1000;
 
 void generateW(double w[]) {
@@ -155,18 +155,19 @@ void generateAF(double *AF) {
     generateW(w);
     generateP(P, w);
     generateL(L);
+    printMatrix(L);
     matrixProduct(P, L, PL);
     matrixProduct(PL, P, A);
-    printMatrix(A);
+//    printMatrix(A);
 
     generateX(X);
-    printVector(X);
+    //printVector(X);
 
     computeF(A, X, F);
-    printVector(F);
+    //printVector(F);
 
     merge(A, F, AF);
-    printMatrixAF(AF);
+    //printMatrixAF(AF);
 }
 
 int main() {
