@@ -3,7 +3,7 @@
 #include <math.h>
 #include <stdlib.h>
 
-const double EPS = 0.0001;
+const double EPS = 0.001;
 
 void expressionVariables(double A[], int N) {
     int i, j;
@@ -21,13 +21,6 @@ void copyX(double Xto[], double Xfrom[], int N) {
     int i;
     for (i = 0; i < N; ++i) {
         Xto[i] = Xfrom[i];
-    }
-}
-
-void zeroX(double X[], int N) {
-    int i;
-    for (i = 0; i < N; ++i) {
-        X[i] = 0;
     }
 }
 
@@ -75,9 +68,6 @@ void initXasB(double X[], double A[], int N) {
 
 void iteration(double AA[], double X[], int sizeXrank, int N) {
     int i, j;
-    double oldX[N];
-    zeroX(oldX, N);
-    copyX(oldX, X, N);
     for (i = 0; i < sizeXrank / (N + 1); ++i) {
         X[i] = AA[i * (N + 1)] * X[0];
         for (j = 1; j < N; ++j) {
@@ -114,6 +104,30 @@ void printVector(double w[], int N) {
     printf("\n");
 }
 
+void printMatrix(double P[], int N) {
+    int i, j;
+    printf("Matrix:\n");
+    for (i = 0; i < N; ++i) {
+        for (j = 0; j < N; ++j) {
+            printf("%4.4f ", P[i * N + j]);
+        }
+        printf("\n");
+    }
+    printf("\n");
+}
+
+void printMatrixAF(double AF[], int N) {
+    int i, j;
+    printf("Matrix AF:\n");
+    for (i = 0; i < N; ++i) {
+        for (j = 0; j < N + 1; ++j) {
+            printf("%5.2f ", AF[i * (N + 1) + j]);
+        }
+        printf("\n");
+    }
+    printf("\n");
+}
+
 void productW(double K[], double w[], int N) {
     int i, j;
     for (i = 0; i < N; ++i) {
@@ -130,18 +144,6 @@ double scalarProductW(double w[], int N) {
         sp += w[i] * w[i];
     }
     return sp;
-}
-
-void printMatrix(double P[], int N) {
-    int i, j;
-    printf("Matrix:\n");
-    for (i = 0; i < N; ++i) {
-        for (j = 0; j < N; ++j) {
-            printf("%4.4f ", P[i * N + j]);
-        }
-        printf("\n");
-    }
-    printf("\n");
 }
 
 // P = E - 2 * w*w^T / w^T*w
@@ -225,18 +227,6 @@ void merge(double A[], double F[], double AF[], int N) {
     }
 }
 
-void printMatrixAF(double AF[], int N) {
-    int i, j;
-    printf("Matrix AF:\n");
-    for (i = 0; i < N; ++i) {
-        for (j = 0; j < N + 1; ++j) {
-            printf("%5.2f ", AF[i * (N + 1) + j]);
-        }
-        printf("\n");
-    }
-    printf("\n");
-}
-
 void generateAF(double AF[], int cond, int N) {
     double w[N];
     double P[N * N];
@@ -257,12 +247,19 @@ void generateAF(double AF[], int cond, int N) {
     computeF(A, X, F, N);
 
     merge(A, F, AF, N);
-    printMatrixAF(AF, N);
+}
+
+void printAverage(double X[], int N) {
+    int i;
+    double sum = 0;
+    for (i = 0; i < N; ++i) {
+        sum += X[i];
+    }
+    printf("Average Xi: %4.4f\n", sum / N);
+    return;
 }
 
 int main(int argc, char *argv[]) {
-    int rank = 0, size;
-
     int N = 0;
     int cond = 0;
     if (argc > 1) {
@@ -270,21 +267,25 @@ int main(int argc, char *argv[]) {
         cond = atoi(argv[2]);
     }
 
-    // в массиве A хранится матрица A и вектор F
-    double A[(N + 1) * N];
-    double X[N], oldX[N];
-
-    // вроде для отключения буферизации
-    setvbuf(stdout, NULL, _IONBF, 0);
+    int k = 0;
+    int rank = 0, size;
 
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
+    // вроде для отключения буферизации
+    setvbuf(stdout, NULL, _IONBF, 0);
+
+    // в массиве A хранится матрица A и вектор F
+    double A[(N + 1) * N];
+    double X[N], oldX[N];
+
     // инициализация матрицы A, векторов X, B
     if (rank == 0) {
         generateAF(A, cond, N);
         expressionVariables(A, N);
+        //printMatrixAF(A, N);
         initXasB(X, A, N);
     }
 
@@ -326,7 +327,8 @@ int main(int argc, char *argv[]) {
     } while (globmax > EPS);
 
     if (rank == 0) {
-        printVector(X, N);
+        //printVector(X, N);
+        printAverage(X, N);
         printf("Number iteration: %d\n", counter);
     }
 
