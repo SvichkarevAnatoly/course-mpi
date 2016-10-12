@@ -14,14 +14,6 @@ void expressionVariables(double A[], int N) {
             A[i * (N + 1) + j] = -A[i * (N + 1) + j] / cur;
         }
         A[i * (N + 1) + N] /= cur;
-        A[i * (N + 1) + i] = 0;
-    }
-}
-
-void copyX(double Xto[], double Xfrom[], int N) {
-    int i;
-    for (i = 0; i < N; ++i) {
-        Xto[i] = Xfrom[i];
     }
 }
 
@@ -65,28 +57,6 @@ void initXasB(double X[], double A[], int N) {
     for (i = 0; i < N; ++i) {
         X[i] = A[i * (N + 1) + N];
     }
-}
-
-void iteration(double AA[], double X[], int sizeXrank, int N) {
-    int i, j;
-    for (i = 0; i < sizeXrank / (N + 1); ++i) {
-        X[i] = AA[i * (N + 1)] * X[0];
-        for (j = 1; j < N; ++j) {
-            X[i] += AA[i * (N + 1) + j] * X[j];
-        }
-        X[i] += AA[i * (N + 1) + N];
-    }
-}
-
-double localDiffMax(double X[], double oldX[], int sizeXrank, int displsXrank) {
-    int i;
-    double max = fabs(X[0] - oldX[displsXrank]);
-    for (i = 1; i < sizeXrank; ++i) {
-        if (fabs(X[i] - oldX[displsXrank + i]) > max) {
-            max = fabs(X[i] - oldX[displsXrank + i]);
-        }
-    }
-    return max;
 }
 
 void generateW(double w[], int N) {
@@ -258,6 +228,25 @@ void printAverage(double X[], int N) {
     return;
 }
 
+double iterationAndGetLocalmax(double AA[], double X[],
+                               int sendcountsXrank, int displsXrank, int N) {
+    int i, j;
+    double diff, localmax;
+    localmax = 0.0;
+    for (i = 0; i < sendcountsXrank; ++i) {
+        diff = 0.0;
+        for (j = 0; j < N; ++j) {
+            diff += AA[i * (N + 1) + j] * X[j];
+        }
+        diff += AA[i * (N + 1) + N];
+        if (localmax < fabs(diff)) {
+            localmax = fabs(diff);
+        }
+        X[i + displsXrank] += diff;
+    }
+    return localmax;
+}
+
 int main(int argc, char *argv[]) {
     int N = 0;
     int cond = 0;
@@ -277,13 +266,12 @@ int main(int argc, char *argv[]) {
 
     // в массиве A хранится матрица A и вектор F
     double A[(N + 1) * N];
-    double X[N], oldX[N];
+    double X[N];
 
     // инициализация матрицы A, векторов X, B
     if (rank == 0) {
         generateAF(A, cond, N);
         expressionVariables(A, N);
-        //printMatrixAF(A, N);
         initXasB(X, A, N);
     }
 
@@ -305,29 +293,26 @@ int main(int argc, char *argv[]) {
 
     // рассылка всем начального X
     MPI_Bcast(X, N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    copyX(oldX, X, N);
 
     double localmax;
     double globmax;
     int counter = 0;
     do {
-        copyX(X, oldX, N);
-        iteration(AA, X, sendcountsA[rank], N);
+        // вычисление новой итерации и наибольшей нормы невязки
+        localmax = iterationAndGetLocalmax(AA, X, sendcountsX[rank], displsX[rank], N);
 
-        // вычисление локального максимума на процессе
-        localmax = localDiffMax(X, oldX, sendcountsX[rank], displsX[rank]);
-
-        // с помощью all reduce отправить max из max всем остальным
+        // с помощью all reduce отправить максимум из максимумов всем остальным
         MPI_Allreduce(&localmax, &globmax, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
-        MPI_Allgatherv(X, sendcountsX[rank], MPI_DOUBLE,
-                       oldX, sendcountsX, displsX, MPI_DOUBLE, MPI_COMM_WORLD);
+        // обменяться вычисленными частями X для текущего состояния X на всех процессах
+        MPI_Allgatherv(X + displsX[rank], sendcountsX[rank], MPI_DOUBLE,
+                       X, sendcountsX, displsX, MPI_DOUBLE, MPI_COMM_WORLD);
         counter++;
     } while (globmax > EPS);
 
     // вывод результата
     if (rank == 0) {
-        if(N <= 10){
+        if (N <= 10) {
             // если строк мало, вывести получившийся X
             printVector(X, N);
         } else {
